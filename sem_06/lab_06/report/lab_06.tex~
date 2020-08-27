@@ -1,0 +1,418 @@
+\documentclass[a4paper,14pt]{extreport} % формат документа
+
+\usepackage{amsmath}
+\usepackage{cmap} % поиск в ПДФ
+\usepackage[T2A]{fontenc} % кодировка
+\usepackage[utf8]{inputenc} % кодировка исходного текста
+\usepackage[english,russian]{babel} % локализация и переносы
+\usepackage[left = 2cm, right = 1cm, top = 2cm, bottom = 2 cm]{geometry} % поля
+\usepackage{listings}
+\usepackage{graphicx} % для вставки рисунков
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{pdfpages}
+\graphicspath{{pictures/}}
+\DeclareGraphicsExtensions{.pdf,.png,.jpg}
+\newcommand{\anonsection}[1]{\section*{#1}\addcontentsline{toc}{section}{#1}}
+
+\lstset{ %
+	language=C,                % выбор языка для подсветки (здесь это С)
+        basicstyle=\small\sffamily, % размер и начертание шрифта для подсветки кода
+        numbers=left,               % где поставить нумерацию строк (слева\справа)
+        numberstyle=\tiny,           % размер шрифта для номеров строк
+        stepnumber=1,                   % размер шага между двумя номерами строк
+        numbersep=-5pt,                % как далеко отстоят номера строк от         подсвечиваемого кода
+        backgroundcolor=\color{white}, % цвет фона подсветки - используем         \usepackage{color}
+        showspaces=false,            % показывать или нет пробелы специальными     отступами
+        showstringspaces=false,      % показывать или нет пробелы в строках
+        showtabs=false,             % показывать или нет табуляцию в строках
+        frame=single,              % рисовать рамку вокруг кода
+        tabsize=2,                 % размер табуляции по умолчанию равен 2 пробелам
+        captionpos=t,              % позиция заголовка вверху [t] или внизу [b] 
+        breaklines=true,           % автоматически переносить строки (да\нет)
+        breakatwhitespace=false, % переносить строки только если есть пробел
+        escapeinside={\%*}{*)},   % если нужно добавить комментарии в коде
+	    keywordstyle=\color{blue}\ttfamily,
+	    stringstyle=\color{red}\ttfamily,
+	    commentstyle=\color{green}\ttfamily,
+	    morecomment=[l][\color{magenta}]{\#},
+	    columns=fullflexible,
+	    extendedchars=\true
+}
+
+\begin{document}
+
+\begin{figure}[th]
+\noindent\centering{
+\includepdf[pages=-]{title.pdf}}
+\end{figure}
+
+\newpage
+
+\textbf{Задание}
+
+    1. Организовать взаимодействие параллельных процессов на отдельном компьютере.
+    
+    2. Организовать взаимодействие параллельных процессов в сети (ситуацию моделируем на одной машине).\\
+Задание 1
+
+    • Написать приложение по модели клиент-сервер, демонстрирующее взаимодействие параллельных процессов на отдельном компьютере с использованием сокетов в файловом пространстве имен: семейство - AF\underline{ }UNIX, тип - SOCK\underline{ }DGRAM. При демонстрации работы программного комплекса необходимо запустить несколько клиентов (не меньше 5) и продемонстрировать, что сервер обрабатывает обращения каждого запущенного клиента.\\
+Задание 2
+
+    • Написать приложение по модели клиент-сервер, осуществляющее взаимодействие параллельных процессов, которые выполняются на разных компьютерах. Для взаимодействия с клиентами сервер должен использовать мультиплексирование. Сервер должен обслуживать запросы параллельно запущенных клиентов. При демонстрации работы программного комплекса необходимо запустить несколько клиентов (не меньше 5) и продемонстрировать, что сервер обрабатывает обращения каждого запущенного клиента.
+
+\hfill
+\newpage
+\section*{Задание №1}
+
+\begin{lstlisting}[caption=Код сервера fsserver.c]
+  #include <stdlib.h>
+  #include <stdio.h>
+  #include <string.h>
+  #include <errno.h>
+  #include <sys/types.h>
+  #include <sys/socket.h>
+  #include <unistd.h>
+  #include <signal.h>
+
+  #define SOCK_NAME "socket.soc"
+  #define BUF_SIZE 256
+
+  int sock;
+
+  void catch_sigint(int signum)
+  {
+      close(sock);
+      unlink(SOCK_NAME);
+      exit(1);
+  }
+
+  int main(int argc, char ** argv)
+  {
+      struct sockaddr srvr_name, rcvr_name;
+      char buf[BUF_SIZE];
+      int  namelen, bytes;
+
+      sock = socket(AF_UNIX, SOCK_DGRAM, 0);
+      if (sock < 0)
+      {
+          perror("socket() failed");
+          return EXIT_FAILURE;
+      }
+
+      signal(SIGINT, catch_sigint);
+      srvr_name.sa_family = AF_UNIX;
+      strcpy(srvr_name.sa_data, SOCK_NAME);
+
+      if (bind(sock, &srvr_name, strlen(srvr_name.sa_data) +
+          sizeof(srvr_name.sa_family)) < 0)
+      {
+          close(sock);
+          unlink(SOCK_NAME);
+          perror("bind() failed");
+          return EXIT_FAILURE;
+      }
+
+      printf("waiting...\n");
+      
+      while (1)
+      {
+          bytes = recvfrom(sock, buf, sizeof(buf),  0, &rcvr_name, &namelen);
+          if (bytes < 0)
+          {
+              close(sock);
+              unlink(SOCK_NAME);
+              perror("recvfrom() failed");
+              return EXIT_FAILURE;
+          }
+          buf[bytes] = 0;
+          rcvr_name.sa_data[namelen] = 0;
+          printf("Client sent: %s\n", buf);
+      }
+
+      close(sock);
+      unlink(SOCK_NAME);
+
+      return EXIT_SUCCESS;
+  }
+\end{lstlisting}
+ 
+С помощью вызова socket() создается сокет семейства адресов файловых сокетов Unix AF\underline{ }UNIX типа SOCK\underline{ }DGRAM(датаграммный сокет). Сокеты в файловом пространстве имен используют в качестве адресов имена файлов специального типа. После получения дескриптора сокета c помощью системного вызова bind() сокет связывается с заданным адресом. После вызова bind() сервер становится доступным для соединения. Для чтения данных из датаграммного сокета используется функция recvfrom(), на этой функции сервер блокируется до тех пор, пока на вход не поступят новые данные от клиентов. По завершении работы сокет закрывается с помощью функции close(). Перед выходом из программы-сервера файл сокета, созданный в результате вызова socket(), удаляется с помощью функции unlink(). 
+
+\begin{lstlisting}[caption=Код клиента fsclient.c]
+  #include <stdlib.h>
+  #include <stdio.h>
+  #include <string.h>
+  #include <errno.h>
+  #include <unistd.h>
+  #include <sys/types.h>
+  #include <sys/socket.h>
+
+  #define SOCK_NAME "socket.soc"
+  #define BUF_SIZE 256
+
+  int main(int argc, char ** argv)
+  {
+      int   sock;
+      char buf[BUF_SIZE];
+      struct sockaddr srvr_name;
+      
+      sock = socket(AF_UNIX, SOCK_DGRAM, 0);
+
+      if (sock < 0)
+      {
+          perror("socket() failed");
+          return EXIT_FAILURE;
+      }
+
+      srvr_name.sa_family = AF_UNIX;
+      strcpy(srvr_name.sa_data, SOCK_NAME);
+      sprintf(buf, "pid %d", getpid());
+
+      printf("Client's msg: %s\n", buf);
+      sendto(sock, buf, strlen(buf), 0, &srvr_name,
+      strlen(srvr_name.sa_data) + sizeof(srvr_name.sa_family));
+
+      close(sock);
+      return EXIT_SUCCESS;
+  }
+\end{lstlisting}
+
+С помощью функции socket() открывается сокет семейства адресов файловых сокетов Unix AF\underline{ }UNIX типа SOCK\underline{ }DGRAM(датаграммный сокет). С помощью  функции sendto() клиент передает данные серверу. После окончания передачи данных сокет закрывается при помощи close().
+
+\textbf{Демонстрация работы программного комплекса}
+
+\includegraphics[scale=1]{ser1.jpg}
+
+\includegraphics[scale=1]{cl1.jpg}
+
+\hfill
+\newpage
+\section*{Задание №2}
+
+\begin{lstlisting}[caption=Код сервера netserver.c]
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <errno.h>
+  #include <strings.h>
+  #include <sys/types.h> 
+  #include <sys/socket.h>
+  #include <netinet/in.h>
+  #include <stdlib.h>
+  #include <unistd.h>
+  #include <fcntl.h>
+
+  #define BUF_SIZE 256
+  #define PORT 3425
+  #define NUMBER_OF_CLIENTS 5
+
+  void receive(int *clients, int n, fd_set *set)
+  {
+      char buf[BUF_SIZE];
+      int bytes;
+      
+      for (int i = 0; i < n; i++)
+      {
+          if (FD_ISSET(clients[i], set))
+          {
+              bytes = recv(clients[i], buf, BUF_SIZE, 0);
+     
+              if (bytes <= 0)
+              {
+                  printf("Client[%d] disconnected\n", i);
+                  close(clients[i]);
+                  clients[i] = 0;
+              }
+              else
+              {
+                  // send data back to client
+                  buf[bytes] = 0;
+                  printf("Client[%d] sent %s\n", i, buf);
+                  send(clients[i], buf, bytes, 0);
+              }
+          }
+      }
+  }
+
+  int main(int argc, char ** argv)
+  {
+       int sock;
+       int new_sock;
+       struct sockaddr_in serv_addr;
+       fd_set set;
+       int clients[NUMBER_OF_CLIENTS] = {0};
+       int mx;
+       int flag = 1;
+
+       sock = socket(AF_INET, SOCK_STREAM, 0);
+       if (socket < 0)
+       {
+         printf("socket() failed: %d\n", errno);
+         return EXIT_FAILURE;
+       }
+
+       fcntl(sock, F_SETFL, O_NONBLOCK);
+
+       serv_addr.sin_family = AF_INET;
+       serv_addr.sin_addr.s_addr = INADDR_ANY;
+       serv_addr.sin_port = htons(PORT);
+
+       if (bind(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
+       {
+         printf("bind() failed: %d\n", errno);
+         return EXIT_FAILURE;
+       }
+
+       if (listen(sock, 6) < 0)
+       {
+           printf("listen() failed: %d\n", errno);
+           return EXIT_FAILURE;
+       }
+
+       printf("waiting...\n");
+
+       while(1)
+       {
+           FD_ZERO(&set);
+           FD_SET(sock, &set);
+           mx = sock;
+           
+           for (int i = 0; i < NUMBER_OF_CLIENTS; i++)
+           {
+               if (clients[i])
+               {
+                   FD_SET(clients[i], &set);
+               }
+               mx = (mx > clients[i]) ? mx : clients[i];
+           }
+
+           if (select(mx + 1, &set, NULL, NULL, NULL) <= 0)
+           {
+               perror("select");
+               exit(1);
+           }
+    
+           if (FD_ISSET(sock, &set))
+           {
+               new_sock = accept(sock, NULL, NULL);
+
+               if (new_sock < 0)
+               {
+                   perror("accept");
+                   exit(1);
+               }
+               
+               fcntl(new_sock, F_SETFL, O_NONBLOCK);
+
+               flag = 1;
+               for (int i = 0; i < NUMBER_OF_CLIENTS && flag; i++)
+               {
+                   if (!clients[i])
+                   {
+                       clients[i] = new_sock;
+                       printf("Added as client №%d\n", i);
+                       flag = 0;
+                   }
+               }
+           }
+
+           receive(clients, NUMBER_OF_CLIENTS, &set);
+       }
+       return EXIT_SUCCESS;
+  }
+\end{lstlisting}
+
+С помощью вызова socket() создается сокет семейства AF\underline{ }INET(что указывает, что сокет должен быть сетевым) типа SOCK\underline{ }STREAM(потоковый сокет). Затем вызывается функция bind(), которая связывает сокет с адресом, указанным в SOCKET\underline{ }ADDRESS. Функция listen() сообщает сокету, что должны приниматься новые соединения.
+Каждый раз, когда очередной клиент пытается соединиться с сервером, его запрос ставится в очередь, так как сервер может быть занят обработкой других запросов. С помощью макроса FD\underline{ }ZERO() на каждой итерации цикла набор дескрипторов set очищается, затем с помощью макроса FD\underline{ }SET() набор декрипторов set заполняется дескрипторами сокетов сервера и клиентов. Затем функция select() проверяет состояние нескольких дескрипторов сокетов сразу. Сама функция select() - блокирующая, она возвращает управление, если хотя бы один из проверяемых сокетов готов к выполнению соответствующей операции. Чтобы сделать сокет неблокирующим, используется функция fcntl() с флагом O\underline{ }NONBLOCK, то есть вызов любой функции с таким сокетом будет возвращать управление немедленно. Затем проверяется наличие нового запроса на соединение. Вызывается функция accept(), которая устанавливает соединение в ответ на запрос клиента и создает копию сокета для того, чтобы исходный сокет мог продолжать прослушивание. Новый сокет объявляется как неблокирующий и добавляется в массив дескрипторов сокетов клиентов. Затем осущетсвляется обход массива дескрипторов сокетов клиентов, если дескриптор сокета i-го клиента есть в наборе set, то с помощью функции recv() читаются данные i-го клиента, если не было прочитано положительное количество байт, то соединение разорвано, сокет удаляется из массива, иначе вывод сообщения клиента и отправка ответного сообщения клиенту. 
+
+\begin{lstlisting}[caption=Код клиента netclient.c]
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <errno.h>
+  #include <strings.h>
+  #include <sys/types.h>
+  #include <sys/socket.h>
+  #include <netinet/in.h>
+  #include <netdb.h>
+  #include <unistd.h>
+  #include <time.h>
+  #include <string.h>
+
+  #define PORT 3425
+  #define BUF_SIZE 256
+  #define COUNT 5
+  #define SOCK_ADDR "localhost"
+
+  int main(int argc, char ** argv)
+  {
+      int sock;
+      struct sockaddr_in serv_addr;
+      struct hostent *host;
+      char buf[BUF_SIZE];
+      char message[BUF_SIZE];
+
+      sock = socket(AF_INET, SOCK_STREAM, 0);
+      if (sock < 0)
+      {
+        printf("socket() failed: %d", errno);
+        return EXIT_FAILURE;
+      }
+
+      host = gethostbyname(SOCK_ADDR);
+      if (!host)
+      {
+          perror("gethostbyname() failed: ");
+          return EXIT_FAILURE;
+      }
+
+      serv_addr.sin_family = AF_INET;
+      serv_addr.sin_port = htons(PORT);
+      serv_addr.sin_addr = *((struct in_addr*) host->h_addr_list[0]);
+
+      if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+      {
+        printf("connect() failed: %d", errno);
+        return EXIT_FAILURE;
+      }
+
+      srand(time(NULL));
+      
+      for (int i = 0; i < COUNT; i++)
+      {
+          memset(message, 0, BUF_SIZE);
+          sprintf(message, "message[%d]\n", i);
+
+          if (send(sock, message, sizeof(message), 0) < 0)
+          {
+              perror("send() failed:");
+              return EXIT_FAILURE;
+          }
+
+          recv(sock, buf, sizeof(message), 0);
+
+          printf("Server got %s\n", buf);
+
+          sleep(1 + rand() % 5);
+      }
+
+      close(sock);
+
+      return EXIT_SUCCESS;
+  }
+\end{lstlisting}
+
+С помощью функции socket() открывается сокет семейства AF\underline{ }INET (то есть открываемый сокет должен быть сетевым) типа SOCK\underline{ }STREAM(потоковый сокет). Затем с помощью функции gethostbyname() осуществляется преобразование доменного имени сервера в его сетевой адрес.
+Вызыватся функция connect() для установки соединения. С помощью функции send() клиент передает серверу данные, затем клиент блокируется на функции recv() до тех пор, пока на вход не поступит ответное сообщение от сервера.
+После выхода из блокировки выводится полученный ответ от сервера. После окончания передачи данных сокет закрывается при помощи close().
+
+\textbf{Демонстрация работы программного комплекса}
+
+\includegraphics[scale=1]{ser2.jpg}
+
+\includegraphics[scale=1]{cl2_1.jpg}
+
+\includegraphics[scale=1]{cl2_2.jpg}
+
+\end{document}

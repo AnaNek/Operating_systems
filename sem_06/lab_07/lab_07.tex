@@ -1,0 +1,45 @@
+\documentclass[a4paper,14pt]{extreport} % формат документа
+
+\usepackage{amsmath}
+\usepackage{cmap} % поиск в ПДФ
+\usepackage[T2A]{fontenc} % кодировка
+\usepackage[utf8]{inputenc} % кодировка исходного текста
+\usepackage[english,russian]{babel} % локализация и переносы
+\usepackage[left = 2cm, right = 1cm, top = 2cm, bottom = 2 cm]{geometry} % поля
+\usepackage{listings}
+\usepackage{graphicx} % для вставки рисунков
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{pdfpages}
+\graphicspath{{pictures/}}
+\DeclareGraphicsExtensions{.pdf,.png,.jpg}
+\newcommand{\anonsection}[1]{\section*{#1}\addcontentsline{toc}{section}{#1}}
+
+\begin{document}
+
+\begin{figure}[th]
+\noindent\centering{
+\includepdf[pages=-]{title.pdf}}
+\end{figure}
+
+\newpage
+\includegraphics[scale=0.57]{1.jpg}
+
+\newpage
+\includegraphics[scale=0.57]{2.jpg}
+
+\newpage
+\includegraphics[scale=0.57]{3.jpg}
+
+\newpage
+\includegraphics[scale=0.57]{4.jpg}
+
+\newpage
+\includegraphics[scale=0.57]{5.jpg}
+
+\newpage
+\includegraphics[scale=0.57]{6.jpg}
+
+\end{document}
